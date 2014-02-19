@@ -42,6 +42,11 @@ class BeaconViewController < UIViewController
                                   action: "changeRangingState:", 
                                   forControlEvents:UIControlEventValueChanged)
       else
+        cell.textLabel.text = "Ranging"
+        @rangingSwitch      = cell.accessoryView
+        @rangingSwitch.addTarget(self, 
+                                  action: "changeRangingState:", 
+                                  forControlEvents:UIControlEventValueChanged)
       end
     when NTDetectedBeaconsSection
       beacon  = @detectedBeacons[indexPath.row]
@@ -55,25 +60,36 @@ class BeaconViewController < UIViewController
       cell.detailTextLabel.text       = detailsStringForBeacon(beacon)
       cell.detailTextLabel.textColor  = UIColor.GrayColor
     else
+      beacon  = @detectedBeacons[indexPath.row]
+      cell    = tableView.dequeueReusableCellWithIdentifier("BeaconCell")
+      
+      unless (cell)
+        cell = UITableViewCell.alloc.initWithStyle(UITableViewCellStyleSubtitle, reuseIdentifier:"BeaconCell")
+      end
+      
+      cell.textLabel.text             = beacon.proximityUUID.UUIDString
+      cell.detailTextLabel.text       = detailsStringForBeacon(beacon)
+      cell.detailTextLabel.textColor  = UIColor.GrayColor
     end
 
     cell
   end
 
   def numberOfSectionsInTableView(tableView)
-    @rangingSwitch.on? ? 2 : 1
+    # @rangingSwitch.on? ? 2 : 1
+    1
   end
 
-  def tableView(tableView, numberOfRowsInSection:section)
-    case section
-    when NTOperationsSection
-      2
-    when NTDetectedBeaconsSection
-      
-    else 
-      @detectedBeacons.size
-    end
-  end
+  # def tableView(tableView, numberOfRowsInSection:section)
+  #   case section
+  #   when NTOperationsSection
+  #     2
+  #   when NTDetectedBeaconsSection
+  #     @detectedBeacons.size
+  #   else 
+  #     @detectedBeacons.size
+  #   end
+  # end
 
   def tableView(tableView, titleForHeaderInSection:section)
     case section
@@ -121,6 +137,8 @@ class BeaconViewController < UIViewController
   end
 
   def changeAdvertisingState(switch)
+    NSLog("changeAdvertisingState")
+    NSLog("state: #{switch.on?}")
     switch.on? ? startAdvertisingBeacon : stopAdvertisingBeacon
   end
 
@@ -129,6 +147,7 @@ class BeaconViewController < UIViewController
   end
 
   def startAdvertisingBeacon
+    NSLog("starting startAdvertisingBeacon")
     createBeaconRegion
 
     unless(@peripheralManager)
@@ -158,8 +177,8 @@ class BeaconViewController < UIViewController
 
     @locatioManager.stopRangingBeaconsInRegion(@beaconRegion)
 
-    @detectedBeacons = []
     sectionsToBeDeleted = deletedSections
+    @detectedBeacons = []
 
     @beaconTableView.beginUpdates
     if(sectionsToBeDeleted)
@@ -172,7 +191,7 @@ class BeaconViewController < UIViewController
   end
 
   def deletedSections
-    if(not @rangingSwitch.on? and @beaconTableView.numberOfSections == 1)
+    if(not @rangingSwitch.on? and @beaconTableView.numberOfSections == 2)
       NSIndexSet.indexSetWithIndex(1)
     else
       nil
@@ -199,10 +218,10 @@ class BeaconViewController < UIViewController
 
     unless(CLLocationManager.isRangingAvailable)
       p "Couldn't turn on ranging: Ranging is not available."
-      @rangingSwitch.on = false
+      @rangingSwitch.setOn(false, animated: true)
     end
 
-    if(@locationManager.rangedRegions.count > 0)
+    if(@locationManager.rangedRegions.size > 0)
       p "Didn't turn on ranging: Ranging already on."
       return
     end
@@ -214,42 +233,46 @@ class BeaconViewController < UIViewController
   end
 
   def createBeaconRegion
+    NSLog("beacon region: #{@beaconRegion}")
     return if(@beaconRegion)
 
-    proximityUUID = NSUUID.alloc.initWithUUIDString("00000000-0000-0000-0000-000000000000")
+    NSLog("2  .... ")
+    NSLog("beacon region: #{@beaconRegion}")
+
+    proximityUUID = NSUUID.alloc.initWithUUIDString("7cbff8c6-4d84-4e8c-8703-377e03d4f69f")
     @beaconRegion = CLBeaconRegion.alloc.initWithProximityUUID(proximityUUID, identifier:"UniqueIdentifier")
   end
 
   def turnOnAdvertising
     if(@peripheralManager.state != CBPeripheralManagerStatePoweredOn)
-      p "Peripheral manager is off."
-      @advertisingSwitch.on = false
+      NSLog("Peripheral manager is off.")
+      @advertisingSwitch.setOn(false, animated: true)
       return
     end
 
-    region = CLBeaconRegion.alloc.initWithProximityUUID(@beaconRegion.proximityUUID, major:rand(), minor:rand(), identifier:@beaconRegion.identifier)
+    region = CLBeaconRegion.alloc.initWithProximityUUID(@beaconRegion.proximityUUID, major:0, minor:1, identifier:@beaconRegion.identifier)
     @peripheralManager.startAdvertising(region.peripheralDataWithMeasuredPower(nil))
-    p "Turning on advertising for region #{region}"
+    NSLog("Turning on advertising for region #{region}")
   end
 
   #pragma mark - Beacon advertising delegate methods
   def peripheralManagerDidStartAdvertising(peripheralManager, error:error)
     if(error)
       p error
-      @advertisingSwitch.on = false
+      @advertisingSwitch.setOn(false, animated: true)
       return
     end
 
     if (peripheralManager.isAdvertising)
       p "Turned advertising"
-      @advertisingSwitch.on = true
+      @advertisingSwitch.setOn(false, animated: true)
     end
   end
 
   def peripheralManagerDidUpdateState(peripheralManager)
     if(peripheralManager.state != CBPeripheralManagerStatePoweredOn)
       p "Peripheral manager is off."
-      @advertisingSwitch.on = false
+      @advertisingSwitch.setOn(false, animated: true)
       return
     end
 
@@ -261,17 +284,17 @@ class BeaconViewController < UIViewController
   def locationManager(manager, didChangeAuthorizationStatus:status)
     unless(CLLocationManager.locationServicesEnabled)
       p "Couldn't turn on ranging: Location services are not enabled."
-      @rangingSwitch.on = false
+      @rangingSwitch.setOn(false, animated: true)
       return
     end
 
     if(CLLocationManager.authorizationStatus != KCLAuthorizationStatusAuthorized)
       p "Couldn't turn on ranging: Location services not authorised."
-      @rangingSwitch.on = false
+      @rangingSwitch.setOn(false, animated: true)
       return
     end
 
-    @rangingSwitch.on = true
+    @rangingSwitch.setOn(true, animated: true)  
   end
 
   def locationManager(manager, didRangeBeacons:beacons, inRegion:region)
@@ -297,56 +320,47 @@ class BeaconViewController < UIViewController
 
     @beaconTableView.beginUpdates
     if (newSections)
-      @beaconTableView.insertSections(newSections withRowAnimation:UITableViewRowAnimationFade)
+      @beaconTableView.insertSections(newSections, withRowAnimation:UITableViewRowAnimationFade)
     end
 
     if(removedSections)
-      @beaconTableView.deleteSections(removedSections withRowAnimation:UITableViewRowAnimationFade)
+      @beaconTableView.deleteSections(removedSections, withRowAnimation:UITableViewRowAnimationFade)
     end
 
     if(insertedRows)
-      @beaconTableView.insertRowsAtIndexPaths(insertedRows withRowAnimation:UITableViewRowAnimationFade)
+      @beaconTableView.insertRowsAtIndexPaths(insertedRows, withRowAnimation:UITableViewRowAnimationFade)
     end
 
     if(deletedRows)
-      @beaconTableView.deleteRowsAtIndexPaths(deletedRows withRowAnimation:UITableViewRowAnimationFade)
+      @beaconTableView.deleteRowsAtIndexPaths(deletedRows, withRowAnimation:UITableViewRowAnimationFade)
     end
 
     if(reloadedRows)
-      @beaconTableView.reloadRowsAtIndexPaths(reloadedRows withRowAnimation:UITableViewRowAnimationFade)
+      @beaconTableView.reloadRowsAtIndexPaths(reloadedRows, withRowAnimation:UITableViewRowAnimationFade)
     end
     @beaconTableView.endUpdates
   end
 
   # pragma mark - Index path management
   def indexPathsOfRemovedBeacons(beacons)
+    indexPaths = []
+
+    @detectedBeacons.each_with_index { |beacon, index|
+      matchedBeacon = beacons.select{|b| beacon.major.integerValue == b.major.integerValue \
+                         and \
+                         beacon.minor.integerValue == b.minor.integerValue \
+                      }.first
+      indexPaths << NSIndexPath.indexPathForRow(index, inSection:NTDetectedBeaconsSection) unless(matchedBeacon)
+    }
+    indexPaths
+  end
+
+  def indexPathsOfInsertedBeacons(beacons)
     
   end
 
-  # - (NSArray *)indexPathsOfRemovedBeacons:(NSArray *)beacons
-  # {
-  #     NSMutableArray *indexPaths = nil;
-      
-  #     NSUInteger row = 0;
-  #     for (CLBeacon *existingBeacon in self.detectedBeacons) {
-  #         BOOL stillExists = NO;
-  #         for (CLBeacon *beacon in beacons) {
-  #             if ((existingBeacon.major.integerValue == beacon.major.integerValue) &&
-  #                 (existingBeacon.minor.integerValue == beacon.minor.integerValue)) {
-  #                 stillExists = YES;
-  #                 break;
-  #             }
-  #         }
-  #         if (!stillExists) {
-  #             if (!indexPaths)
-  #                 indexPaths = [NSMutableArray new];
-  #             [indexPaths addObject:[NSIndexPath indexPathForRow:row inSection:NTDetectedBeaconsSection]];
-  #         }
-  #         row++;
-  #     }
-      
-  #     return indexPaths;
-  # }
+  def indexPathsForBeacons(beacons)
+  end
 
   # - (NSArray *)indexPathsOfInsertedBeacons:(NSArray *)beacons
   # {
