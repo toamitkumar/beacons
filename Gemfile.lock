@@ -1,10 +1,12 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    motion-testflight (1.4)
     rake (10.0.4)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
+  motion-testflight
   rake
